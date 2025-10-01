@@ -1,0 +1,7 @@
+.venv
+.env
+*.json
+*.xlsm
+*.docx
+*.zip
+*.png
