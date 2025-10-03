@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email File Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div id="email-list-container">
+            <h2>Email Files</h2>
+            <ul id="email-list">
+                </ul>
+        </div>
+
+        <div id="email-content-container">
+            <div id="viewer-placeholder">
+                <p>📧 Select a ready email from the list on the left.</p>
+            </div>
+            <div id="viewer-content" class="hidden">
+                <h2 id="email-subject"></h2>
+                <div id="email-headers"></div>
+                <h3>Email Body</h3>
+                <div class="body-wrapper">
+                    <iframe id="email-body-iframe" src="about:blank"></iframe>
+                </div>
+                <h3>Processed Information</h3>
+                    <div id="processed-output">
+                        <pre id="processed-output-raw"></pre> 
+                    </div>
+                    <div id="processed-output-structured" class="hidden">
+
+                        <div class="info-section">
+                            <h4><span class="emoji">🚚</span> General Shipment</h4>
+                            <div class="info-grid">
+                                <span class="info-label">Miles:</span><span class="info-value" id="shipment-miles"></span>
+                                <span class="info-label">Travel Time:</span><span class="info-value" id="shipment-travel-time"></span>
+                                <span class="info-label">Language:</span><span class="info-value" id="language"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4><span class="emoji">🗓️</span> ETAs</h4>
+                            <div class="info-grid">
+                                <span class="info-label">Pickup ETAs:</span><div class="info-value details-list" id="shipment-pickup-eta-list"></div>
+                                <span class="info-label">Delivery ETAs:</span><div class="info-value details-list" id="shipment-delivery-eta-list"></div>
+                            </div>
+                        </div>
+
+                        <div class="location-grid">
+                            <div class="info-section">
+                                <h4><span class="emoji">📍</span> Pickup Location(s)</h4>
+                                <div id="pickup-locations-list" class="location-list"></div>
+                            </div>
+                            <div class="info-section">
+                                <h4><span class="emoji">🏁</span> Delivery Location(s)</h4>
+                                <div id="delivery-locations-list" class="location-list"></div>
+                            </div>
+                        </div>
+
+                        <div class="info-section">
+                            <h4><span class="emoji">📦</span> Other Details</h4>
+                            <div class="info-grid wide">
+                                <span class="info-label">Piece Count:</span><span class="info-value" id="other-pieces"></span>
+                                <span class="info-label">Weight (lbs):</span><span class="info-value" id="other-weight"></span>
+                                <span class="info-label">Stackable:</span><span class="info-value" id="other-stackable"></span>
+                                <span class="info-label">Hazardous:</span><span class="info-value" id="other-hazardous"></span>
+                                <span class="info-label">US Vehicle:</span><span class="info-value" id="other-us-vehicle"></span>
+                                <span class="info-label">MX Vehicle:</span><span class="info-value" id="other-mx-vehicle"></span>
+                                <span class="info-label full-width">Requirements:</span><span class="info-value full-width" id="other-requirements"></span>
+                            </div>
+                        </div>
+
+                        <div class="info-section">
+                            <h4><span class="emoji">📐</span> Dimensions</h4>
+                            <div id="shipment-dimensions-list" class="details-list"></div>
+                        </div>
+
+                        <div class="info-section">
+                            <h4><span class="emoji">💲</span> Rates</h4>
+                            <div class="info-grid">
+                                <span class="info-label">Base Rate:</span><span class="info-value" id="rates-base-rate"></span>
+                            </div>
+                            <div id="rates-starboard-list" class="details-list"></div>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const emailList = document.getElementById('email-list');
+        const placeholder = document.getElementById('viewer-placeholder');
+        const viewerContent = document.getElementById('viewer-content');
+        let currentSelection = null;
+        let pollingInterval = null;
+
+        // Function to render the initial list based on status
+        function renderEmailList(files) {
+            emailList.innerHTML = ''; // Clear existing list
+            if (files.length === 0) {
+                emailList.innerHTML = `<li>No files found.</li>`;
+                return;
+            }
+            files.forEach(fileInfo => {
+                const li = document.createElement('li');
+                li.textContent = fileInfo.filename;
+                li.dataset.filename = fileInfo.filename;
+                // Add class based on status
+                li.classList.add(fileInfo.status); // 'processing', 'completed', or 'error'
+                
+                li.addEventListener('click', () => {
+                    // Only allow click if the item is 'completed'
+                    if (li.classList.contains('completed')) {
+                        loadEmailContent(fileInfo.filename, li);
+                    }
+                });
+                emailList.appendChild(li);
+            });
+        }
+
+        // Initial fetch to get the list of emails and their states
+        fetch('/api/emails')
+            .then(response => response.json())
+            .then(files => {
+                renderEmailList(files);
+                // Start polling for status updates
+                pollingInterval = setInterval(pollForUpdates, 2000); // Check every 2 seconds
+            });
+
+        // NEW: Function to poll for status updates
+        function pollForUpdates() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(statuses => {
+                    let allDone = true;
+                    Object.keys(statuses).forEach(filename => {
+                        const status = statuses[filename].status;
+                        const li = emailList.querySelector(`[data-filename="${filename}"]`);
+                        if (li && !li.classList.contains(status)) {
+                            console.log(`${filename} changed to ${status}`);
+                            li.className = ''; // Reset classes
+                            li.classList.add(status);
+                        }
+                        if (status === 'processing') {
+                            allDone = false;
+                        }
+                    });
+                    // If all files are processed, stop polling
+                    if (allDone) {
+                        console.log('All processing complete. Stopping polling.');
+                        clearInterval(pollingInterval);
+                    }
+                });
+        }
+        
+        // Replace the entire loadEmailContent function with this one
+        function loadEmailContent(filename, listItem) {
+            placeholder.style.display = 'none';
+            viewerContent.classList.remove('hidden');
+
+            // Reset view to loading state
+            document.getElementById('email-subject').textContent = 'Loading...';
+            document.getElementById('email-headers').innerHTML = '';
+            document.getElementById('email-body-iframe').srcdoc = '<p>Loading content...</p>';
+            
+            // Hide new structured view and clear old raw view
+            document.getElementById('processed-output-structured').classList.add('hidden');
+            document.getElementById('processed-output-raw').textContent = '';
+
+            if (currentSelection) {
+                currentSelection.classList.remove('selected');
+            }
+            listItem.classList.add('selected');
+            currentSelection = listItem;
+
+            // Helper function to populate our new structured view
+            const displayProcessedData = (processed) => {
+                // This helper safely gets nested properties
+                const get = (obj, path, fallback = 'N/A') => {
+                    const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+                    return value !== null && value !== undefined ? value : fallback;
+                };
+                
+                // Generic helper to render items in a list container
+                const renderList = (containerId, items, renderItemFunc, noItemsMessage) => {
+                    const container = document.getElementById(containerId);
+                    container.innerHTML = ''; // Clear previous items
+                    const itemsArray = items || [];
+                    if (itemsArray.length > 0) {
+                        itemsArray.forEach(item => container.appendChild(renderItemFunc(item)));
+                    } else {
+                        const noItemsEl = document.createElement('div');
+                        noItemsEl.className = 'details-list-item';
+                        noItemsEl.textContent = noItemsMessage;
+                        container.appendChild(noItemsEl);
+                    }
+                };
+
+                // Show the structured view
+                document.getElementById('processed-output-structured').classList.remove('hidden');
+
+                // Populate top-level and shipment details
+                document.getElementById('language').textContent = get(processed, 'language');
+                document.getElementById('shipment-miles').textContent = get(processed, 'shipment.miles');
+                document.getElementById('shipment-travel-time').textContent = get(processed, 'shipment.travel_time');
+
+                // Populate Locations Lists
+                renderList('pickup-locations-list', get(processed, 'shipment.pickup', []), (loc) => {
+                    const card = document.createElement('div');
+                    card.className = 'location-card';
+                    card.innerHTML = `
+                        <div class="info-grid">
+                            <span class="info-label">City:</span><span class="info-value">${get(loc, 'city')}</span>
+                            <span class="info-label">State:</span><span class="info-value">${get(loc, 'state')}</span>
+                            <span class="info-label">Zip:</span><span class="info-value">${get(loc, 'zip_code')}</span>
+                        </div>
+                    `;
+                    return card;
+                }, 'No pickup locations provided.');
+                
+                renderList('delivery-locations-list', get(processed, 'shipment.delivery', []), (loc) => {
+                    const card = document.createElement('div');
+                    card.className = 'location-card';
+                    card.innerHTML = `
+                        <div class="info-grid">
+                            <span class="info-label">City:</span><span class="info-value">${get(loc, 'city')}</span>
+                            <span class="info-label">State:</span><span class="info-value">${get(loc, 'state')}</span>
+                            <span class="info-label">Zip:</span><span class="info-value">${get(loc, 'zip_code')}</span>
+                        </div>
+                    `;
+                    return card;
+                }, 'No delivery locations provided.');
+
+                // Populate ETA Lists
+                renderList('shipment-pickup-eta-list', get(processed, 'shipment.pickup_eta', []), (eta) => {
+                    const item = document.createElement('div');
+                    item.className = 'details-list-item';
+                    item.textContent = eta;
+                    return item;
+                }, 'N/A');
+
+                renderList('shipment-delivery-eta-list', get(processed, 'shipment.delivery_eta', []), (eta) => {
+                    const item = document.createElement('div');
+                    item.className = 'details-list-item';
+                    item.textContent = eta;
+                    return item;
+                }, 'N/A');
+
+                // Populate Other Details (these are single fields)
+                document.getElementById('other-pieces').textContent = get(processed, 'shipment.others.piece_count');
+                document.getElementById('other-weight').textContent = get(processed, 'shipment.others.weight_lbs');
+                document.getElementById('other-stackable').textContent = get(processed, 'shipment.others.stackable');
+                document.getElementById('other-hazardous').textContent = get(processed, 'shipment.others.hazardous');
+                document.getElementById('other-us-vehicle').textContent = get(processed, 'shipment.others.us_vehicle');
+                document.getElementById('other-mx-vehicle').textContent = get(processed, 'shipment.others.mx_vehicle');
+                document.getElementById('other-requirements').textContent = get(processed, 'shipment.others.requirements');
+
+                // Populate Rates
+                document.getElementById('rates-base-rate').textContent = get(processed, 'rates.base_rate');
+
+                // Populate Dimensions & Starboard Rates Lists
+                renderList('shipment-dimensions-list', get(processed, 'shipment.dimensions', []), (dim) => {
+                    const item = document.createElement('div');
+                    item.className = 'details-list-item';
+                    item.textContent = `L: ${get(dim, 'length', '?')} W: ${get(dim, 'width', '?')} H: ${get(dim, 'height', '?')}`;
+                    return item;
+                }, 'No dimensions provided.');
+
+                renderList('rates-starboard-list', get(processed, 'rates.starboard_rates', []), (rate) => {
+                    const item = document.createElement('div');
+                    item.className = 'details-list-item';
+                    item.textContent = rate;
+                    return item;
+                }, ''); // No message if no starboard rates
+            };
+            
+            // Fetch the email content
+            fetch(`/api/email/${filename}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('email-subject').textContent = 'Error';
+                        document.getElementById('email-body-iframe').srcdoc = `<p style="color:red;">${data.error}</p>`;
+                        return;
+                    }
+                    
+                    const content = data.content;
+                    const processed = data.processed;
+
+                    // Populate email content
+                    document.getElementById('email-subject').textContent = content.subject || 'No Subject';
+                    document.getElementById('email-headers').innerHTML = `<p><strong>From:</strong> ${content.from || 'N/A'}</p><p><strong>To:</strong> ${content.to || 'N/A'}</p><p><strong>Date:</strong> ${content.date || 'N/A'}</p>`;
+                    document.getElementById('email-body-iframe').srcdoc = content.body || '<p><em>No body content.</em></p>';
+
+                    // Populate processed data
+                    if (processed && processed.shipment) {
+                        document.getElementById('processed-output').classList.add('hidden');
+                        displayProcessedData(processed);
+                    } else {
+                        document.getElementById('processed-output').classList.remove('hidden');
+                        document.getElementById('processed-output-raw').textContent = JSON.stringify(processed, null, 2);
+                    }
+                });
+        }
+    });
+    </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 import os
 import json
-from openai import OpenAI
 from typing import Dict, Any, Union
 from datetime import datetime
+from openai import OpenAI
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -22,12 +22,44 @@ except ImportError:
 
 # --- 1. SETUP CLIENTS AND MODELS ---
 
-# Initialize OpenAI Client
 try:
-    client = OpenAI()
-except Exception as e:
-    print(f"Error initializing OpenAI client: {e}")
-    client = None
+    # client = genai.Client(
+    #     api_key=os.environ.get("GEMINI_API_KEY"),
+    # )
+    client = OpenAI(
+    api_key=os.environ.get("GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
+except KeyError:
+    raise KeyError("GOOGLE_API_KEY not found in environment variables. Please create a .env file and add it.")
+
+def call_gemini_with_prompt(messages, **kwargs) -> str:
+    """
+    A wrapper function to call the Gemini API with a given prompt and configuration.
+    This makes the Gemini API compatible with the Guardrails library's expectations.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gemini-2.5-flash",
+            messages=messages,
+            temperature=0,
+            max_tokens=50,
+            extra_body={
+            'extra_body': {
+                "google": {
+                "thinking_config": {
+                    "thinking_budget": 0,
+                    "include_thoughts": False
+                }
+                }
+            }
+            }
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"An error occurred while calling the Gemini API: {e}")
+        # Return an empty string or handle the error as appropriate
+        return ""
 
 # Load embedding model for validation
 print("Loading embedding model...")
@@ -51,7 +83,6 @@ def extract_and_validate_field(
     # Guard configured to only check for factual consistency (provenance)
     guard = gd.Guard().use(
         ProvenanceLLM(
-            llm_callable="gpt-4.1-2025-04-14",
             on_fail="fix",
         )
     )
@@ -64,11 +95,8 @@ def extract_and_validate_field(
 
     try:
         response = guard(
-            # llm_api=client.chat.completions.create,
-            model="gpt-4.1-2025-04-14",
+            call_gemini_with_prompt,
             messages=messages,
-            temperature=0,
-            max_tokens=50,
             metadata={
                 "sources": [text_data],
                 "embed_function": embed_function,
@@ -115,13 +143,12 @@ def extract_and_validate_list(text_data: str, list_description: str, item_schema
         {"role": "user", "content": final_prompt}
     ]
 
-    guard = gd.Guard().use(ProvenanceLLM(llm_callable="gpt-4.1-2025-04-14", on_fail="fix"))
+    guard = gd.Guard().use(ProvenanceLLM(on_fail="fix"))
 
     try:
         response = guard(
-            model="gpt-4.1-2025-04-14",
+            call_gemini_with_prompt,
             messages=messages,
-            temperature=0,
             metadata={"sources": [text_data], "embed_function": embed_function}
         )
         raw_output = response.raw_llm_output
@@ -149,8 +176,6 @@ def process_text_field_by_field(text_data: str) -> Dict[str, Any]:
     Takes raw text and extracts structured information field-by-field,
     validating each with Guardrails.
     """
-    if not client:
-        raise ConnectionError("OpenAI client is not initialized.")
 
     # The schema defines what we want to extract, including special formats for lists.
     json_schema = {

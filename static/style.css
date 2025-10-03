@@ -1,0 +1,260 @@
+/* Basic Reset and Font */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7fa;
+    color: #333;
+}
+
+/* Main Two-Column Layout */
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+/* Left Column: Email List */
+#email-list-container {
+    width: 300px;
+    flex-shrink: 0;
+    border-right: 1px solid #dcdfe2;
+    background-color: #ffffff;
+    padding: 15px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+#email-list-container h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    color: #005a9c;
+}
+
+#email-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#email-list li {
+    padding: 12px 10px;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    transition: background-color 0.2s ease;
+    word-break: break-all;
+}
+
+#email-list li.selected {
+    background-color: #0078d4;
+    color: white;
+    font-weight: bold;
+}
+
+/* Right Column: Content Viewer */
+#email-content-container {
+    flex-grow: 1;
+    padding: 25px;
+    overflow-y: auto;
+}
+
+#viewer-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #777;
+    font-size: 1.2em;
+}
+
+.hidden {
+    display: none;
+}
+
+#email-subject {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 2px solid #e1e1e1;
+    padding-bottom: 10px;
+}
+
+#email-headers p {
+    margin: 5px 0;
+    color: #555;
+    background-color: #f9f9f9;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+h3 {
+    margin-top: 30px;
+    color: #005a9c;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+.body-wrapper {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    height: 40vh; /* Set a fixed height for the body viewer */
+    overflow: hidden;
+}
+
+#email-body-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+#processed-output pre {
+    background-color: #2d2d2d;
+    color: #dcdcdc;
+    padding: 15px;
+    border-radius: 5px;
+    white-space: pre-wrap; /* Allows text to wrap */
+    word-wrap: break-word;
+}
+
+/* === NEW STYLES FOR EMAIL PROCESSING STATES === */
+
+/* Style for completed (and ready to be clicked) items */
+#email-list li.completed {
+    cursor: pointer;
+}
+
+#email-list li.completed:hover {
+    background-color: #eaf2f8;
+}
+
+/* Style for items currently being processed */
+#email-list li.processing {
+    color: #888;
+    cursor: not-allowed;
+    position: relative;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+#email-list li.processing::after {
+    content: 'Processing...';
+    position: absolute;
+    top: 0;
+    right: 10px;
+    font-size: 0.8em;
+    font-style: italic;
+    line-height: 45px; /* Vertically align with list item padding */
+}
+
+/* Style for items that failed to process */
+#email-list li.error {
+    color: #d8000c;
+    background-color: #ffbaba;
+    cursor: not-allowed;
+}
+
+/* === NEW STYLES FOR STRUCTURED PROCESSED INFO === */
+
+#processed-output-structured {
+    background-color: #ffffff;
+    border: 1px solid #dcdfe2;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.info-section {
+    margin-bottom: 25px;
+}
+
+.info-section:last-child {
+    margin-bottom: 0;
+}
+
+.info-section h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.1em;
+    color: #005a9c;
+    border-bottom: 1px solid #e1e1e1;
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.info-section h4 .emoji {
+    margin-right: 10px;
+    font-size: 1.2em;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr; /* Label column and Value column */
+    gap: 12px 15px;
+    align-items: center;
+}
+
+.info-grid.wide {
+    grid-template-columns: 140px 1fr 140px 1fr; /* Four columns for more data */
+}
+
+.location-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #555;
+}
+
+.info-value {
+    color: #333;
+    background-color: #f8f9fa;
+    padding: 5px 8px;
+    border-radius: 4px;
+    min-height: 1em;
+}
+
+.info-label.full-width, .info-value.full-width {
+    grid-column: 1 / -1; /* Span all columns */
+}
+
+.details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.details-list-item {
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+/* === NEW STYLES FOR LOCATION LISTS === */
+
+.location-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.location-card {
+    border: 1px solid #e1e1e1;
+    border-radius: 6px;
+    padding: 12px;
+    background-color: #f8f9fa;
+}
+
+.location-card .info-grid {
+    gap: 8px 15px; /* Reduce vertical gap for cards */
+}
+
+/* Ensure details lists inside info-values have no extra padding */
+.info-value.details-list {
+    padding: 0;
+    background-color: transparent;
+}
